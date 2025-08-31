@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>税滞納管理システム</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1>税滞納管理システム</h1>
+  <a href="/business">事業者画面へ</a>
+  <form id="addForm">
+    <input name="name" placeholder="氏名" required>
+    <input name="amount" type="number" placeholder="滞納額" required>
+    <input name="due_date" type="date" placeholder="期限" required>
+    <input name="note" placeholder="メモ">
+    <button type="submit">追加</button>
+  </form>
+
+  <h2>滞納一覧</h2>
+  <table id="records">
+    <thead>
+      <tr><th>ID</th><th>氏名</th><th>滞納額</th><th>期限</th><th>状態</th><th>メモ</th><th>アクション</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>納付情報取込</h2>
+  <form id="importForm">
+    <textarea name="data" placeholder='[{"tax_type":"individual_resident_special","business":"ACME","period":"2024-01","amount":1000,"status":"unpaid"}]' required></textarea>
+    <button type="submit">取込</button>
+  </form>
+
+  <script>
+    async function fetchRecords() {
+      const res = await fetch('/api/delinquents');
+      const data = await res.json();
+      const tbody = document.querySelector('#records tbody');
+      tbody.innerHTML = '';
+      data.forEach(r => {
+        const tr = document.createElement('tr');
+        if (r.important) tr.classList.add('important');
+        tr.innerHTML = `<td>${r.id}</td><td>${r.name}</td><td>${r.amount}</td><td>${r.due_date}</td><td>${r.status}</td><td>${r.note||''}</td>` +
+          `<td>${r.status === 'unpaid' ? '<button data-pay="'+r.id+'">支払済みにする</button>' : ''}` +
+          `${r.important ? '' : '<button data-flag="'+r.id+'">重要</button>'}` +
+          `</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      await fetch('/api/delinquents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.value,
+          amount: parseFloat(form.amount.value),
+          due_date: form.due_date.value,
+          note: form.note.value
+        })
+      });
+      form.reset();
+      fetchRecords();
+    });
+
+    document.querySelector('#records tbody').addEventListener('click', async (e) => {
+      if (e.target.dataset.pay) {
+        const id = e.target.dataset.pay;
+        await fetch(`/api/delinquents/${id}/pay`, { method: 'POST' });
+        fetchRecords();
+      }
+      if (e.target.dataset.flag) {
+        const id = e.target.dataset.flag;
+        await fetch(`/api/delinquents/${id}/flag`, { method: 'POST' });
+        fetchRecords();
+      }
+    });
+
+    document.getElementById('importForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await fetch('/api/payments/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: e.target.data.value
+      });
+      e.target.reset();
+      alert('取込完了');
+    });
+
+    fetchRecords();
+  </script>
+</body>
+</html>
