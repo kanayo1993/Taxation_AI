@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>税滞納管理システム</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    table { border-collapse: collapse; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 0.5em; }
+  </style>
+</head>
+<body>
+  <h1>税滞納管理システム</h1>
+  <form id="addForm">
+    <input name="name" placeholder="氏名" required>
+    <input name="amount" type="number" placeholder="滞納額" required>
+    <input name="due_date" type="date" placeholder="期限" required>
+    <button type="submit">追加</button>
+  </form>
+
+  <table id="records">
+    <thead>
+      <tr><th>ID</th><th>氏名</th><th>滞納額</th><th>期限</th><th>状態</th><th>アクション</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function fetchRecords() {
+      const res = await fetch('/api/delinquents');
+      const data = await res.json();
+      const tbody = document.querySelector('#records tbody');
+      tbody.innerHTML = '';
+      data.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.id}</td><td>${r.name}</td><td>${r.amount}</td><td>${r.due_date}</td><td>${r.status}</td>` +
+          `<td>${r.status === 'unpaid' ? '<button data-id="'+r.id+'">支払済みにする</button>' : ''}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      await fetch('/api/delinquents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.value,
+          amount: parseFloat(form.amount.value),
+          due_date: form.due_date.value
+        })
+      });
+      form.reset();
+      fetchRecords();
+    });
+
+    document.querySelector('#records tbody').addEventListener('click', async (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        const id = e.target.dataset.id;
+        await fetch(`/api/delinquents/${id}/pay`, { method: 'POST' });
+        fetchRecords();
+      }
+    });
+
+    fetchRecords();
+  </script>
+</body>
+</html>
